@@ -19,9 +19,19 @@ def initialize_database():
             CREATE TABLE IF NOT EXISTS queries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 pokemon_id INTEGER,
+                search_term TEXT,
                 queried_at DATETIME
             )
         ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_pokemon_name ON pokemon(name)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_queries_pokemon_id ON queries(pokemon_id)
+        ''')
+
         connection.commit()
         print("Database verified and tables are ready.")
 
@@ -37,16 +47,16 @@ def save_pokemon(pokemon_id, name, height, weight, types_list):
             ''', (pokemon_id, name, height, weight, types_text))
         connection.commit()
 
-def log_query(pokemon_id):
+def log_query(pokemon_id, search_term):
     current_time = datetime.now()
     
     with sqlite.connect("pokedex.db") as connection:
         cursor = connection.cursor()
 
         cursor.execute('''
-            INSERT INTO queries (pokemon_id, queried_at)
-            VALUES (?, ?)
-        ''', (pokemon_id, current_time))
+            INSERT INTO queries (pokemon_id, search_term, queried_at)
+            VALUES (?, ?, ?)
+        ''', (pokemon_id, search_term, current_time))
         
         connection.commit()
 
@@ -83,9 +93,9 @@ def get_query_history():
         cursor = connection.cursor()
 
         cursor.execute('''
-            SELECT queries.id, pokemon.name, queries.queried_at
+            SELECT queries.id, pokemon.name, queries.search_term, queries.queried_at
             FROM queries
-            JOIN pokemon ON queries.pokemon_id = pokemon.id
+            LEFT JOIN pokemon ON queries.pokemon_id = pokemon.id
             ORDER BY queries.queried_at DESC
         ''')
 
@@ -95,7 +105,8 @@ def get_query_history():
             history_dict = {
                 "query_id": row[0],
                 "pokemon_name": row[1],
-                "queried_at": row[2]
+                "search_term": row[2],
+                "queried_at": row[3]
             }
 
             history_list.append(history_dict)

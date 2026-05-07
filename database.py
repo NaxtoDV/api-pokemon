@@ -1,9 +1,10 @@
 import sqlite3 as sqlite
 from datetime import datetime
 
+DATABASE_PATH = "pokedex.db"
 
 def initialize_database():
-    with sqlite.connect("pokedex.db") as connection:
+    with sqlite.connect(DATABASE_PATH) as connection:
         cursor = connection.cursor()
 
         cursor.execute('''
@@ -35,10 +36,12 @@ def initialize_database():
         connection.commit()
         print("Database verified and tables are ready.")
 
+    connection.close()
+
 def save_pokemon(pokemon_id, name, height, weight, types_list):
     types_text = ", ".join(types_list)
 
-    with sqlite.connect("pokedex.db") as connection:
+    with sqlite.connect(DATABASE_PATH) as connection:
         cursor = connection.cursor()
 
         cursor.execute('''
@@ -47,10 +50,12 @@ def save_pokemon(pokemon_id, name, height, weight, types_list):
             ''', (pokemon_id, name, height, weight, types_text))
         connection.commit()
 
+    connection.close()
+
 def log_query(pokemon_id, search_term):
-    current_time = datetime.now()
+    current_time = datetime.now().isoformat()
     
-    with sqlite.connect("pokedex.db") as connection:
+    with sqlite.connect(DATABASE_PATH) as connection:
         cursor = connection.cursor()
 
         cursor.execute('''
@@ -60,10 +65,12 @@ def log_query(pokemon_id, search_term):
         
         connection.commit()
 
+    connection.close()
+
 def get_all_pokemon():
     pokemon_list = []
 
-    with sqlite.connect("pokedex.db") as connection:
+    with sqlite.connect(DATABASE_PATH) as connection:
         cursor = connection.cursor()
 
         cursor.execute('SELECT * FROM pokemon')
@@ -84,12 +91,16 @@ def get_all_pokemon():
 
             pokemon_list.append(pokemon_dict)
         
+    connection.close()
+
     return pokemon_list
+
+    
 
 def get_query_history():
     history_list = []
 
-    with sqlite.connect("pokedex.db") as connection:
+    with sqlite.connect(DATABASE_PATH) as connection:
         cursor = connection.cursor()
 
         cursor.execute('''
@@ -111,4 +122,5 @@ def get_query_history():
 
             history_list.append(history_dict)
         
+    connection.close()
     return history_list

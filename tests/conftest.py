@@ -3,32 +3,31 @@ import pytest
 import pytest_asyncio
 import os
 
+os.environ["DATABASE_PATH"] = "test_pokedex.db"
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from config import settings
 import database
 from httpx import AsyncClient, ASGITransport
-
-TEST_DB_PATH = "test_pokedex.db"
-database.DATABASE_PATH = TEST_DB_PATH
-
 from app import app 
 
 @pytest.fixture(autouse=True)
 def setup_test_db():
     """
-    Este fixture se ejecuta antes y después de cada test automáticamente.
-    Garantiza que la base de datos esté limpia y lista.
+    Garantiza que la base de datos de prueba esté limpia.
+    Usa settings.database_path que ahora vale 'test_pokedex.db'.
     """
-
-    if os.path.exists(TEST_DB_PATH):
-        os.remove(TEST_DB_PATH)
+    db_path = settings.database_path
+    if os.path.exists(db_path):
+        os.remove(db_path)
         
     database.initialize_database()
     
     yield 
     
-    if os.path.exists(TEST_DB_PATH):
-        os.remove(TEST_DB_PATH)
+    if os.path.exists(db_path):
+        os.remove(db_path)
 
 @pytest_asyncio.fixture
 async def async_client():

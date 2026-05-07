@@ -1,10 +1,9 @@
 import sqlite3 as sqlite
 from datetime import datetime
-
-DATABASE_PATH = "pokedex.db"
+from config import settings
 
 def initialize_database():
-    with sqlite.connect(DATABASE_PATH) as connection:
+    with sqlite.connect(settings.database_path) as connection:
         cursor = connection.cursor()
 
         cursor.execute('''
@@ -41,7 +40,7 @@ def initialize_database():
 def save_pokemon(pokemon_id, name, height, weight, types_list):
     types_text = ", ".join(types_list)
 
-    with sqlite.connect(DATABASE_PATH) as connection:
+    with sqlite.connect(settings.database_path) as connection:
         cursor = connection.cursor()
 
         cursor.execute('''
@@ -55,7 +54,7 @@ def save_pokemon(pokemon_id, name, height, weight, types_list):
 def log_query(pokemon_id, search_term):
     current_time = datetime.now().isoformat()
     
-    with sqlite.connect(DATABASE_PATH) as connection:
+    with sqlite.connect(settings.database_path) as connection:
         cursor = connection.cursor()
 
         cursor.execute('''
@@ -70,7 +69,7 @@ def log_query(pokemon_id, search_term):
 def get_all_pokemon():
     pokemon_list = []
 
-    with sqlite.connect(DATABASE_PATH) as connection:
+    with sqlite.connect(settings.database_path) as connection:
         cursor = connection.cursor()
 
         cursor.execute('SELECT * FROM pokemon')
@@ -100,7 +99,7 @@ def get_all_pokemon():
 def get_query_history():
     history_list = []
 
-    with sqlite.connect(DATABASE_PATH) as connection:
+    with sqlite.connect(settings.database_path) as connection:
         cursor = connection.cursor()
 
         cursor.execute('''

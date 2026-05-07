@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from contextlib import asynccontextmanager
 import httpx
 import database
@@ -27,8 +27,8 @@ class PokemonResponse(BaseModel):
     weight: int
     types: list[str]
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": 25,
                 "name": "pikachu",
@@ -37,6 +37,7 @@ class PokemonResponse(BaseModel):
                 "types": ["electric"]
             }
         }
+    )
 
 class QueryHistoryResponse(BaseModel):
     query_id: int
@@ -44,8 +45,8 @@ class QueryHistoryResponse(BaseModel):
     search_term: str
     queried_at: str
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "query_id": 1,
                 "pokemon_name": "pikachu",
@@ -53,7 +54,7 @@ class QueryHistoryResponse(BaseModel):
                 "queried_at": "2026-05-05T15:30:00"
             }
         }
-
+    )
 
 @app.get(
         '/pokemon/{pokemon_id_or_name}', 

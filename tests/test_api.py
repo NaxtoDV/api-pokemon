@@ -4,7 +4,6 @@ import database
 def test_database_save_and_retrieve_pokemon():
     """Prueba Unitaria: Verifica que la BD guarde y recupere un Pokémon correctamente"""
     
-    
     database.save_pokemon(
         pokemon_id=25,
         name="pikachu",
@@ -12,7 +11,6 @@ def test_database_save_and_retrieve_pokemon():
         weight=60,
         types_list=["electric"]
     )
-    
     
     saved_pokemon = database.get_all_pokemon()
     
@@ -32,10 +30,11 @@ def test_database_log_query():
 
 
 @pytest.mark.asyncio
-async def test_get_pokemon_endpoint_success(async_client):
-    """Prueba Integración: Búsqueda exitosa en /pokemon/{name}"""
+async def test_get_pokemon_by_search_success(async_client):
+    """Prueba Integración: Búsqueda exitosa en /pokemon/search"""
     
-    response = await async_client.get("/pokemon/ditto")
+   
+    response = await async_client.get("/pokemon/search?query=ditto")
     
     assert response.status_code == 200
     
@@ -48,10 +47,34 @@ async def test_get_pokemon_endpoint_success(async_client):
     assert history[0]["search_term"] == "ditto"
 
 @pytest.mark.asyncio
-async def test_get_pokemon_endpoint_not_found(async_client):
-    """Prueba Integración: Búsqueda fallida en /pokemon/{name}"""
+async def test_get_pokemon_by_id_success(async_client):
+    """Prueba Integración: Búsqueda exitosa por ID en /pokemon/{id}"""
     
-    response = await async_client.get("/pokemon/digimon_infiltrado")
+    
+    response = await async_client.get("/pokemon/132") 
+    
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert data["name"] == "ditto"
+    assert data["id"] == 132
+
+@pytest.mark.asyncio
+async def test_search_endpoint_rejects_numbers(async_client):
+    """Prueba Integración: Verifica que no se puedan buscar IDs en la ruta de texto"""
+    
+    
+    response = await async_client.get("/pokemon/search?query=25")
+    
+    assert response.status_code == 400
+    assert "Para buscar por número" in response.json()["detail"]
+
+@pytest.mark.asyncio
+async def test_get_pokemon_endpoint_not_found(async_client):
+    """Prueba Integración: Búsqueda fallida en /pokemon/search"""
+    
+    
+    response = await async_client.get("/pokemon/search?query=digimon_infiltrado")
     
     assert response.status_code == 404
     assert response.json()["detail"] == "That pokemon does not exist"
@@ -64,7 +87,8 @@ async def test_get_pokemon_endpoint_not_found(async_client):
 async def test_get_all_saved_pokemon_endpoint(async_client):
     """Prueba Integración: Endpoint /pokemon lista los guardados"""
     
-    await async_client.get("/pokemon/mew")
+    
+    await async_client.get("/pokemon/search?query=mew")
     
     response = await async_client.get("/pokemon")
     
@@ -78,8 +102,9 @@ async def test_get_all_saved_pokemon_endpoint(async_client):
 async def test_get_history_endpoint(async_client):
     """Prueba Integración: Endpoint /history devuelve las búsquedas en orden"""
     
-    await async_client.get("/pokemon/snorlax")
-    await async_client.get("/pokemon/eevee")
+    
+    await async_client.get("/pokemon/search?query=snorlax")
+    await async_client.get("/pokemon/search?query=eevee")
     
     response = await async_client.get("/history")
     
@@ -88,6 +113,5 @@ async def test_get_history_endpoint(async_client):
     
     assert isinstance(data, list)
     assert len(data) >= 2
-    
     
     assert data[0]["search_term"] == "eevee"

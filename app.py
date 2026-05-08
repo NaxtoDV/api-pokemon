@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 from contextlib import asynccontextmanager
 import httpx
@@ -56,21 +56,16 @@ class QueryHistoryResponse(BaseModel):
         }
     )
 
-@app.get(
-        '/pokemon/{pokemon_id_or_name}', 
-        response_model=PokemonResponse,
-        summary="Obtener un Pokemon",
-        description="Busca un Pokemon por nombre o ID en la PokéAPI. Si se encuentra, guarda sus datos localmente y registra la consulta. Si no existe, solo se guarda el término buscado en el historial sin almacenar ningún Pokemon.",
-        tags=["Pokemon"])
-async def get_pokemon(pokemon_id_or_name: str):
 
-    """
-    Busca un Pokemon por nombre o ID en la PokéAPI.
-    Si existe, lo guarda en la base local y registra la búsqueda.
-    Si no existe, solo registra la búsqueda fallida.
-    """
+async def fetch_and_save_pokemon(search_term: str):
+    
+    local_pokemon = database.get_pokemon_local(search_term)
+    
+    if local_pokemon:
+        
+        database.log_query(pokemon_id=local_pokemon["id"], search_term=search_term)
+        return local_pokemon
 
-    search_term = pokemon_id_or_name.lower()
     pokeapi_url = f"https://pokeapi.co/api/v2/pokemon/{search_term}"
 
     async with httpx.AsyncClient() as client:
@@ -86,23 +81,59 @@ async def get_pokemon(pokemon_id_or_name: str):
             "types": [type_info["type"]["name"] for type_info in pokemon_data["types"]]
         }
 
+        
         database.save_pokemon(
-            pokemon_id = pokemon_info["id"],
-            name = pokemon_info["name"],
-            height = pokemon_info["height"],
-            weight = pokemon_info["weight"],
-            types_list= pokemon_info["types"]
+            pokemon_id=pokemon_info["id"],
+            name=pokemon_info["name"],
+            height=pokemon_info["height"],
+            weight=pokemon_info["weight"],
+            types_list=pokemon_info["types"]
         )
 
-        database.log_query(pokemon_id = pokemon_info["id"], search_term= search_term)
-
+        
+        database.log_query(pokemon_id=pokemon_info["id"], search_term=search_term)
         return pokemon_info
     
     elif response.status_code == 404:
-        database.log_query(pokemon_id = None, search_term = search_term)
+        
+        database.log_query(pokemon_id=None, search_term=search_term)
         raise HTTPException(status_code=404, detail="That pokemon does not exist")
     else:
         raise HTTPException(status_code=500, detail="Error communicating with the PokeAPI")
+
+@app.get(
+    '/pokemon/search', 
+    response_model=PokemonResponse,
+    summary="Buscar un Pokemon por nombre",
+    description="Busca un Pokemon estrictamente por su nombre utilizando un Query Parameter.",
+    tags=["Pokemon"]
+)
+async def search_pokemon(query: str = Query(..., description="Nombre del Pokemon a buscar")):
+    """
+    Busca un Pokemon por nombre.
+    """
+    if query.isdigit():
+        raise HTTPException(
+            status_code=400, 
+            detail="Para buscar por número, utiliza el endpoint /pokemon/{id}"
+        )
+
+    search_term = query.lower()
+    return await fetch_and_save_pokemon(search_term)
+
+@app.get(
+    '/pokemon/{id}', 
+    response_model=PokemonResponse,
+    summary="Obtener un Pokemon por ID",
+    description="Busca un Pokemon estrictamente por su ID numérico utilizando un Path Parameter.",
+    tags=["Pokemon"]
+)
+async def get_pokemon_by_id(id: int):
+    """
+    Busca un Pokemon por ID numérico.
+    """
+    search_term = str(id)
+    return await fetch_and_save_pokemon(search_term)
     
 @app.get('/pokemon', 
          response_model=list[PokemonResponse],

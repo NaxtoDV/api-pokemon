@@ -1,6 +1,7 @@
 import sqlite3 as sqlite
 from datetime import datetime
 from config import settings
+from datetime import datetime, timedelta
 
 def initialize_database():
     with sqlite.connect(settings.database_path) as connection:
@@ -12,7 +13,8 @@ def initialize_database():
                 name TEXT NOT NULL,
                 height INTEGER,
                 weight INTEGER,
-                types TEXT
+                types TEXT,
+                updated_at TEXT
             )
         ''')
         cursor.execute('''
@@ -39,14 +41,15 @@ def initialize_database():
 
 def save_pokemon(pokemon_id, name, height, weight, types_list):
     types_text = ", ".join(types_list)
+    current_time = datetime.now().isoformat()
 
     with sqlite.connect(settings.database_path) as connection:
         cursor = connection.cursor()
 
         cursor.execute('''
-            INSERT OR IGNORE INTO pokemon (id, name, height, weight, types)
-            VALUES (?, ?, ?, ?, ?)
-            ''', (pokemon_id, name, height, weight, types_text))
+            INSERT OR REPLACE INTO pokemon (id, name, height, weight, types, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ''', (pokemon_id, name, height, weight, types_text, current_time))
         connection.commit()
 
     connection.close()
@@ -65,6 +68,53 @@ def log_query(pokemon_id, search_term):
         connection.commit()
 
     connection.close()
+
+def get_pokemon_local(search_term):
+    """
+    Busca un Pokémon en la base de datos local por ID o por nombre.
+    Retorna un diccionario con los datos si existe y NO ha caducado, o None.
+    """
+    pokemon_data = None  
+
+    with sqlite.connect(settings.database_path) as connection:
+        cursor = connection.cursor()
+        
+        if str(search_term).isdigit():
+            cursor.execute('SELECT * FROM pokemon WHERE id = ?', (int(search_term),))
+        else:
+            cursor.execute('SELECT * FROM pokemon WHERE name = ?', (search_term,))
+
+        row = cursor.fetchone()
+
+        if row:
+            
+            last_update_str = row[5]
+            
+            
+            if last_update_str: 
+                last_update = datetime.fromisoformat(last_update_str)
+                
+                expiration_time = last_update + timedelta(seconds=settings.cache_ttl)
+
+
+                if datetime.now() < expiration_time:
+                    
+                    types_string = row[4]
+                    types_list = types_string.split(", ")
+
+                    pokemon_data = {
+                        "id": row[0],
+                        "name": row[1],
+                        "height": row[2],
+                        "weight": row[3],
+                        "types": types_list
+                    }
+                else:
+                    print(f"DEBUG: El caché de {search_term} ha caducado.")
+            
+    connection.close()
+    
+    return pokemon_data
 
 def get_all_pokemon():
     pokemon_list = []

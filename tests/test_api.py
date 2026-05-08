@@ -1,4 +1,7 @@
 import pytest
+from datetime import datetime, timedelta
+from config import settings
+import sqlite3 as sqlite
 import database
 
 def test_database_save_and_retrieve_pokemon():
@@ -115,3 +118,24 @@ async def test_get_history_endpoint(async_client):
     assert len(data) >= 2
     
     assert data[0]["search_term"] == "eevee"
+
+def test_ttl_expiration_logic():
+    """
+    Prueba Unitaria: Verifica que get_pokemon_local respete el tiempo de expiración.
+    """
+    
+    search_term = "bulbasaur"
+    expired_date = (datetime.now() - timedelta(days=2)).isoformat()
+    
+    with sqlite.connect(settings.database_path) as connection:
+        cursor = connection.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO pokemon (id, name, height, weight, types, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (1, "bulbasaur", 7, 69, "grass, poison", expired_date))
+        connection.commit()
+    connection.close()
+    
+    cached_pokemon = database.get_pokemon_local(search_term)
+    
+    assert cached_pokemon is None, "Error: La función devolvió un Pokémon que ya debería estar expirado."

@@ -62,7 +62,6 @@ async def fetch_and_save_pokemon(search_term: str):
     local_pokemon = database.get_pokemon_local(search_term)
     
     if local_pokemon:
-        
         database.log_query(pokemon_id=local_pokemon["id"], search_term=search_term)
         return local_pokemon
 
@@ -71,35 +70,32 @@ async def fetch_and_save_pokemon(search_term: str):
     async with httpx.AsyncClient() as client:
         response = await client.get(pokeapi_url)
 
-    if response.status_code == 200:
-        pokemon_data = response.json()
-        pokemon_info = {
-            "id": pokemon_data["id"],
-            "name": pokemon_data["name"],
-            "height": pokemon_data["height"],
-            "weight": pokemon_data["weight"],
-            "types": [type_info["type"]["name"] for type_info in pokemon_data["types"]]
-        }
-
-        
-        database.save_pokemon(
-            pokemon_id=pokemon_info["id"],
-            name=pokemon_info["name"],
-            height=pokemon_info["height"],
-            weight=pokemon_info["weight"],
-            types_list=pokemon_info["types"]
-        )
-
-        
-        database.log_query(pokemon_id=pokemon_info["id"], search_term=search_term)
-        return pokemon_info
-    
-    elif response.status_code == 404:
-        
+    if response.status_code == 404:
         database.log_query(pokemon_id=None, search_term=search_term)
         raise HTTPException(status_code=404, detail="That pokemon does not exist")
-    else:
+        
+    if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Error communicating with the PokeAPI")
+
+    pokemon_data = response.json()
+    pokemon_info = { 
+        "id": pokemon_data["id"],
+        "name": pokemon_data["name"],
+        "height": pokemon_data["height"],
+        "weight": pokemon_data["weight"],
+        "types": [type_info["type"]["name"] for type_info in pokemon_data["types"]]
+    }
+
+    database.save_pokemon(
+        pokemon_id=pokemon_info["id"],
+        name=pokemon_info["name"],
+        height=pokemon_info["height"],
+        weight=pokemon_info["weight"],
+        types_list=pokemon_info["types"]
+    )
+
+    database.log_query(pokemon_id=pokemon_info["id"], search_term=search_term)
+    return pokemon_info
 
 @app.get(
     '/pokemon/search', 

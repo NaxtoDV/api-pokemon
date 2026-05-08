@@ -74,8 +74,6 @@ def get_pokemon_local(search_term):
     Busca un Pokémon en la base de datos local por ID o por nombre.
     Retorna un diccionario con los datos si existe y NO ha caducado, o None.
     """
-    pokemon_data = None  
-
     with sqlite.connect(settings.database_path) as connection:
         cursor = connection.cursor()
         
@@ -85,36 +83,33 @@ def get_pokemon_local(search_term):
             cursor.execute('SELECT * FROM pokemon WHERE name = ?', (search_term,))
 
         row = cursor.fetchone()
-
-        if row:
-            
-            last_update_str = row[5]
-            
-            
-            if last_update_str: 
-                last_update = datetime.fromisoformat(last_update_str)
-                
-                expiration_time = last_update + timedelta(seconds=settings.cache_ttl)
-
-
-                if datetime.now() < expiration_time:
-                    
-                    types_string = row[4]
-                    types_list = types_string.split(", ")
-
-                    pokemon_data = {
-                        "id": row[0],
-                        "name": row[1],
-                        "height": row[2],
-                        "weight": row[3],
-                        "types": types_list
-                    }
-                else:
-                    print(f"DEBUG: El caché de {search_term} ha caducado.")
-            
     connection.close()
+
+    if not row:
+        return None
+        
+    last_update_str = row[5]
     
-    return pokemon_data
+    if not last_update_str:
+        return None 
+        
+    last_update = datetime.fromisoformat(last_update_str)
+    expiration_time = last_update + timedelta(seconds=settings.cache_ttl)
+
+    if datetime.now() >= expiration_time:
+        print(f"DEBUG: El caché de {search_term} ha caducado.")
+        return None
+
+    types_string = row[4]
+    types_list = types_string.split(", ")
+
+    return {
+        "id": row[0],
+        "name": row[1],
+        "height": row[2],
+        "weight": row[3],
+        "types": types_list
+    }
 
 def get_all_pokemon():
     pokemon_list = []

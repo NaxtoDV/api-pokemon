@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
+from schemas import PokemonResponse, QueryHistoryResponse
 from contextlib import asynccontextmanager
 import httpx
 import database
@@ -19,42 +19,6 @@ app = FastAPI(
     title= "Pokemon API",
     description="API para consultar Pokemon desde la PokeAPI y mantener un historial de busquedas",
     version="1.0.0")
-
-class PokemonResponse(BaseModel):
-    id: int
-    name: str
-    height: int
-    weight: int
-    types: list[str]
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "id": 25,
-                "name": "pikachu",
-                "height": 4,
-                "weight": 60,
-                "types": ["electric"]
-            }
-        }
-    )
-
-class QueryHistoryResponse(BaseModel):
-    query_id: int
-    pokemon_name: str |None = None
-    search_term: str
-    queried_at: str
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "query_id": 1,
-                "pokemon_name": "pikachu",
-                "search_term": "pikachu",
-                "queried_at": "2026-05-05T15:30:00"
-            }
-        }
-    )
 
 
 async def fetch_and_save_pokemon(search_term: str):

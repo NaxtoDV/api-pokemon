@@ -1,10 +1,12 @@
 import sqlite3 as sqlite
-from datetime import datetime
-from config import settings
 from datetime import datetime, timedelta
+from contextlib import closing
+from config import settings
+from schemas import PokemonResponse, QueryHistoryResponse
+
 
 def initialize_database():
-    with sqlite.connect(settings.database_path) as connection:
+    with closing(sqlite.connect(settings.database_path)) as connection:
         cursor = connection.cursor()
 
         cursor.execute('''
@@ -17,6 +19,7 @@ def initialize_database():
                 updated_at TEXT
             )
         ''')
+
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS queries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,45 +40,49 @@ def initialize_database():
         connection.commit()
         print("Database verified and tables are ready.")
 
-    connection.close()
 
 def save_pokemon(pokemon_id, name, height, weight, types_list):
+    
     types_text = ", ".join(types_list)
     current_time = datetime.now().isoformat()
 
-    with sqlite.connect(settings.database_path) as connection:
+    with closing(sqlite.connect(settings.database_path)) as connection:
         cursor = connection.cursor()
 
+        
         cursor.execute('''
             INSERT OR REPLACE INTO pokemon (id, name, height, weight, types, updated_at)
             VALUES (?, ?, ?, ?, ?, ?)
-            ''', (pokemon_id, name, height, weight, types_text, current_time))
+        ''', (pokemon_id, name, height, weight, types_text, current_time))
+
         connection.commit()
 
-    connection.close()
 
 def log_query(pokemon_id, search_term):
     current_time = datetime.now().isoformat()
-    
-    with sqlite.connect(settings.database_path) as connection:
+
+    with closing(sqlite.connect(settings.database_path)) as connection:
         cursor = connection.cursor()
 
+        
         cursor.execute('''
             INSERT INTO queries (pokemon_id, search_term, queried_at)
             VALUES (?, ?, ?)
         ''', (pokemon_id, search_term, current_time))
-        
+
         connection.commit()
 
-    connection.close()
 
 def get_pokemon_local(search_term):
     """
     Busca un Pokémon en la base de datos local por ID o por nombre.
     Retorna un diccionario con los datos si existe y NO ha caducado, o None.
     """
-    with sqlite.connect(settings.database_path) as connection:
+    with closing(sqlite.connect(settings.database_path)) as connection:
+        
+        connection.row_factory = sqlite.Row
         cursor = connection.cursor()
+
         
         if str(search_term).isdigit():
             cursor.execute('SELECT * FROM pokemon WHERE id = ?', (int(search_term),))
@@ -83,88 +90,64 @@ def get_pokemon_local(search_term):
             cursor.execute('SELECT * FROM pokemon WHERE name = ?', (search_term,))
 
         row = cursor.fetchone()
-    connection.close()
 
+    
     if not row:
         return None
-        
-    last_update_str = row[5]
-    
-    if not last_update_str:
-        return None 
-        
-    last_update = datetime.fromisoformat(last_update_str)
-    expiration_time = last_update + timedelta(seconds=settings.cache_ttl)
 
-    if datetime.now() >= expiration_time:
+    
+    if not row["updated_at"]:
+        return None
+
+    
+    last_update = datetime.fromisoformat(row["updated_at"])
+    if datetime.now() >= last_update + timedelta(seconds=settings.cache_ttl):
         print(f"DEBUG: El caché de {search_term} ha caducado.")
         return None
 
-    types_string = row[4]
-    types_list = types_string.split(", ")
+    
+    pokemon = PokemonResponse.model_validate(dict(row))
+    return pokemon.model_dump()
 
-    return {
-        "id": row[0],
-        "name": row[1],
-        "height": row[2],
-        "weight": row[3],
-        "types": types_list
-    }
 
 def get_all_pokemon():
-    pokemon_list = []
-
-    with sqlite.connect(settings.database_path) as connection:
+    with closing(sqlite.connect(settings.database_path)) as connection:
+        
+        connection.row_factory = sqlite.Row
         cursor = connection.cursor()
 
         cursor.execute('SELECT * FROM pokemon')
-
         rows = cursor.fetchall()
 
-        for row in rows:
-            types_string = row[4]
-            types_list = types_string.split(", ")
 
-            pokemon_dict = {
-                "id": row[0],
-                "name": row[1],
-                "height": row[2],
-                "weight": row[3],
-                "types": types_list
-            }
-
-            pokemon_list.append(pokemon_dict)
-        
-    connection.close()
+    pokemon_list = []
+    for row in rows:
+        pokemon = PokemonResponse.model_validate(dict(row))
+        pokemon_list.append(pokemon.model_dump())
 
     return pokemon_list
 
-    
 
 def get_query_history():
-    history_list = []
-
-    with sqlite.connect(settings.database_path) as connection:
+    with closing(sqlite.connect(settings.database_path)) as connection:
+    
+        connection.row_factory = sqlite.Row
         cursor = connection.cursor()
 
         cursor.execute('''
-            SELECT queries.id, pokemon.name, queries.search_term, queries.queried_at
+            SELECT queries.id        AS query_id,
+                   pokemon.name      AS pokemon_name,
+                   queries.search_term,
+                   queries.queried_at
             FROM queries
             LEFT JOIN pokemon ON queries.pokemon_id = pokemon.id
             ORDER BY queries.queried_at DESC
         ''')
-
         rows = cursor.fetchall()
 
-        for row in rows:
-            history_dict = {
-                "query_id": row[0],
-                "pokemon_name": row[1],
-                "search_term": row[2],
-                "queried_at": row[3]
-            }
+    history_list = []
+    for row in rows:
+        query = QueryHistoryResponse.model_validate(dict(row))
+        history_list.append(query.model_dump())
 
-            history_list.append(history_dict)
-        
-    connection.close()
     return history_list
